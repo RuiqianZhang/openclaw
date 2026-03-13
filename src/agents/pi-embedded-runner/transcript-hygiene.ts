@@ -49,9 +49,10 @@ function hasThinkingLikeBlock(block: unknown): block is { type: "thinking" | "re
   return type === "thinking" || type === "redacted_thinking";
 }
 
-function findLatestAssistantMessageWithThinking(
-  messages: AgentMessage[],
-): Extract<AgentMessage, { role: "assistant" }> | null {
+function findLatestAssistantMessageWithThinking(messages: AgentMessage[]): {
+  index: number;
+  message: Extract<AgentMessage, { role: "assistant" }>;
+} | null {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i];
     if (!message || typeof message !== "object" || message.role !== "assistant") {
@@ -59,7 +60,7 @@ function findLatestAssistantMessageWithThinking(
     }
     const assistant = message;
     if (Array.isArray(assistant.content) && assistant.content.some(hasThinkingLikeBlock)) {
-      return assistant;
+      return { index: i, message: assistant };
     }
   }
   return null;
@@ -74,16 +75,30 @@ function restoreLatestAssistantMessageWithThinking(
     return sanitizedMessages;
   }
 
+  const alignedCandidate = sanitizedMessages[originalLatestAssistant.index];
+  if (
+    alignedCandidate &&
+    typeof alignedCandidate === "object" &&
+    alignedCandidate.role === "assistant"
+  ) {
+    if (alignedCandidate === originalLatestAssistant.message) {
+      return sanitizedMessages;
+    }
+    const restored = [...sanitizedMessages];
+    restored[originalLatestAssistant.index] = originalLatestAssistant.message;
+    return restored;
+  }
+
   for (let i = sanitizedMessages.length - 1; i >= 0; i -= 1) {
     const candidate = sanitizedMessages[i];
     if (!candidate || typeof candidate !== "object" || candidate.role !== "assistant") {
       continue;
     }
-    if (candidate === originalLatestAssistant) {
+    if (candidate === originalLatestAssistant.message) {
       return sanitizedMessages;
     }
     const restored = [...sanitizedMessages];
-    restored[i] = originalLatestAssistant;
+    restored[i] = originalLatestAssistant.message;
     return restored;
   }
 
@@ -408,7 +423,10 @@ export async function sanitizeSessionHistory(params: {
     },
   );
   const droppedThinking = policy.dropThinkingBlocks
-    ? dropThinkingBlocks(sanitizedImages, { preserveLatestAssistant: true })
+    ? dropThinkingBlocks(sanitizedImages, {
+        preserveLatestAssistantWithThinking: policy.preserveLatestAssistantWithThinking,
+        preserveLatestAssistant: !policy.preserveLatestAssistantWithThinking,
+      })
     : sanitizedImages;
   const sanitizedToolCalls = sanitizeToolCallInputs(droppedThinking, {
     allowedToolNames: params.allowedToolNames,
@@ -438,10 +456,9 @@ export async function sanitizeSessionHistory(params: {
         downgradeOpenAIReasoningBlocks(sanitizedCompactionUsage),
       )
     : sanitizedCompactionUsage;
-  const stableLatestAssistant = restoreLatestAssistantMessageWithThinking(
-    params.messages,
-    sanitizedOpenAI,
-  );
+  const stableLatestAssistant = policy.preserveLatestAssistantWithThinking
+    ? restoreLatestAssistantMessageWithThinking(params.messages, sanitizedOpenAI)
+    : sanitizedOpenAI;
 
   if (hasSnapshot && (!priorSnapshot || modelChanged)) {
     appendModelSnapshot(params.sessionManager, {

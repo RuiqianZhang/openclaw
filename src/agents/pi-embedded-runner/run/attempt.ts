@@ -1784,7 +1784,9 @@ export async function runEmbeddedAttempt(
             return inner(model, context, options);
           }
           const sanitized = dropThinkingBlocks(messages as unknown as AgentMessage[], {
-            preserveLatestAssistant: true,
+            preserveLatestAssistantWithThinking:
+              transcriptPolicy.preserveLatestAssistantWithThinking,
+            preserveLatestAssistant: !transcriptPolicy.preserveLatestAssistantWithThinking,
           }) as unknown;
           if (sanitized === messages) {
             return inner(model, context, options);

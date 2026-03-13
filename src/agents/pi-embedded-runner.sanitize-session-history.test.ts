@@ -843,6 +843,39 @@ describe("sanitizeSessionHistory", () => {
     expect(result[1]).toEqual(messages[1]);
   });
 
+  it("preserves the latest anthropic assistant turn with thinking even after a later assistant error turn", async () => {
+    setNonGoogleModelApi();
+
+    const messages: AgentMessage[] = [
+      makeUserMessage("hello"),
+      makeAssistantMessage(
+        [
+          { type: "thinking", thinking: "latest reasoning", thinkingSignature: "sig" },
+          { type: "text", text: "latest answer" },
+        ],
+        { timestamp: nextTimestamp() },
+      ),
+      makeUserMessage("follow up"),
+      makeAssistantMessage([{ type: "text", text: "" }], {
+        stopReason: "error",
+        timestamp: nextTimestamp(),
+      }),
+      makeUserMessage("try again"),
+    ];
+
+    const result = await sanitizeSessionHistory({
+      messages,
+      modelApi: "anthropic-messages",
+      provider: "anthropic",
+      modelId: "claude-opus-4-6",
+      sessionManager: makeMockSessionManager(),
+      sessionId: TEST_SESSION_ID,
+    });
+
+    expect(result[1]).toEqual(messages[1]);
+    expect(result[3]).toEqual(messages[3]);
+  });
+
   it("does not drop thinking blocks for non-claude copilot models", async () => {
     setNonGoogleModelApi();
 

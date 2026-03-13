@@ -21,6 +21,27 @@ function findLatestAssistantMessageIndex(messages: AgentMessage[]): number {
   return -1;
 }
 
+function hasThinkingLikeBlock(block: unknown): boolean {
+  if (!block || typeof block !== "object") {
+    return false;
+  }
+  const type = (block as { type?: unknown }).type;
+  return type === "thinking" || type === "redacted_thinking";
+}
+
+function findLatestAssistantMessageWithThinkingIndex(messages: AgentMessage[]): number {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (!isAssistantMessageWithContent(message)) {
+      continue;
+    }
+    if (message.content.some(hasThinkingLikeBlock)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 /**
  * Strip all `type: "thinking"` content blocks from assistant messages.
  *
@@ -37,13 +58,15 @@ function findLatestAssistantMessageIndex(messages: AgentMessage[]): number {
  */
 export function dropThinkingBlocks(
   messages: AgentMessage[],
-  opts?: { preserveLatestAssistant?: boolean },
+  opts?: { preserveLatestAssistant?: boolean; preserveLatestAssistantWithThinking?: boolean },
 ): AgentMessage[] {
   let touched = false;
   const out: AgentMessage[] = [];
-  const latestAssistantIndex = opts?.preserveLatestAssistant
-    ? findLatestAssistantMessageIndex(messages)
-    : -1;
+  const latestAssistantIndex = opts?.preserveLatestAssistantWithThinking
+    ? findLatestAssistantMessageWithThinkingIndex(messages)
+    : opts?.preserveLatestAssistant
+      ? findLatestAssistantMessageIndex(messages)
+      : -1;
   for (let index = 0; index < messages.length; index += 1) {
     const msg = messages[index];
     if (!isAssistantMessageWithContent(msg)) {

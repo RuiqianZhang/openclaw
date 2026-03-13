@@ -88,4 +88,34 @@ describe("dropThinkingBlocks", () => {
       { type: "text", text: "latest answer" },
     ]);
   });
+
+  it("preserves the latest assistant turn with thinking when a later assistant error turn exists", () => {
+    const messages: AgentMessage[] = [
+      castAgentMessage({ role: "user", content: "hello" }),
+      castAgentMessage({
+        role: "assistant",
+        content: [
+          { type: "thinking", thinking: "latest reasoning", thinkingSignature: "sig" },
+          { type: "text", text: "latest answer" },
+        ],
+      }),
+      castAgentMessage({ role: "user", content: "follow up" }),
+      castAgentMessage({
+        role: "assistant",
+        content: [{ type: "text", text: "" }],
+      }),
+    ];
+
+    const result = dropThinkingBlocks(messages, {
+      preserveLatestAssistantWithThinking: true,
+    });
+    const reasoningAssistant = result[1] as Extract<AgentMessage, { role: "assistant" }>;
+    const trailingAssistant = result[3] as Extract<AgentMessage, { role: "assistant" }>;
+
+    expect(reasoningAssistant.content).toEqual([
+      { type: "thinking", thinking: "latest reasoning", thinkingSignature: "sig" },
+      { type: "text", text: "latest answer" },
+    ]);
+    expect(trailingAssistant.content).toEqual([{ type: "text", text: "" }]);
+  });
 });
