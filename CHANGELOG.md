@@ -8,6 +8,10 @@ Docs: https://docs.openclaw.ai
 
 - Placeholder: replace with the first 2026.3.14 user-facing change.
 
+### Fixes
+
+- Slack/interactive replies: preserve `channelData.slack.blocks` through live DM delivery and preview-finalized edits so Block Kit button and select directives render instead of falling back to raw text. Thanks @vincentkoc.
+
 ## 2026.3.13
 
 ### Changes
